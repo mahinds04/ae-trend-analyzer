@@ -1,0 +1,25 @@
+# AE Trend Analyzer Requirements
+# Core data processing
+pandas>=1.5.0
+numpy>=1.20.0
+pyarrow>=10.0.0
+
+# Date handling
+python-dateutil>=2.8.0
+
+# Progress bars
+tqdm>=4.64.0
+
+# Visualization
+matplotlib>=3.5.0
+seaborn>=0.11.0
+
+# Optional for enhanced plotting
+plotly>=5.0.0
+
+# Dashboard and web interface
+streamlit>=1.28.0
+
+# Development and testing (optional)
+pytest>=7.0.0
+jupyter>=1.0.0
