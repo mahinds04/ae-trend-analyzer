@@ -55,16 +55,42 @@ pip install -r requirements.txt
 
 **FAERS Directory Examples** (matching loader expectations):
 ```
-data/raw/faers_ascii_2024q1/    # Quarters: 2024q1, 2024q2, 2024q3, 2024Q4
-data/raw/faers_ascii_2013q1/    # Older format: 2013q1, 2013q2, 2013q3, 2013q4  
-data/raw/faers_ascii_2023q4/    # Any year-quarter combination supported
+data/raw/
+├── faers_ascii_2024q1/         # Recent quarters (recommended)
+│   ├── ASCII/
+│   │   ├── DEMO24Q1.txt        # Demographics
+│   │   ├── DRUG24Q1.txt        # Drug information
+│   │   ├── REAC24Q1.txt        # Adverse reactions
+│   │   ├── INDI24Q1.txt        # Indications
+│   │   ├── OUTC24Q1.txt        # Outcomes
+│   │   ├── RPSR24Q1.txt        # Report sources
+│   │   └── THER24Q1.txt        # Therapy dates
+│   ├── FAQs.pdf
+│   └── Readme.pdf
+├── faers_ascii_2024q2/         # Additional quarters
+├── faers_ascii_2024q3/
+├── faers_ascii_2024Q4/         # Note: Case insensitive
+├── faers_ascii_2013q1/         # Legacy format also supported
+│   ├── ascii/                  # Lowercase 'ascii' folder
+│   │   ├── DEMO13Q1.txt
+│   │   ├── DRUG13Q1.txt
+│   │   └── ...
+└── WebMD Drug Reviews Dataset/
+    └── webmd.csv
 ```
 
-**Required Files Per Quarter**:
-- `ASCII/DEMO*.txt` (demographics)
-- `ASCII/DRUG*.txt` (drug information) 
-- `ASCII/REAC*.txt` (reactions)
-- Plus: INDI, OUTC, RPSR, THER files
+**Naming Patterns Supported**:
+- **Quarterly folders**: `faers_ascii_YYYYqN` (e.g., `2024q1`, `2013Q4`)
+- **ASCII subdirectory**: `ASCII/` or `ascii/` (case insensitive)
+- **File patterns**: `DEMO*.txt`, `DRUG*.txt`, `REAC*.txt`, etc.
+- **Automatic detection**: Loader discovers all matching quarters automatically
+
+**Minimum Required Files** (per quarter):
+- ✅ **DEMO**: Patient demographics (required)
+- ✅ **REAC**: Adverse reactions (required)  
+- ✅ **DRUG**: Drug information (recommended)
+- ⚪ **OUTC**: Outcomes (optional, for serious event flags)
+- ⚪ **INDI/THER/RPSR**: Additional context (optional)
 
 ### Run the Application
 
@@ -288,8 +314,16 @@ This will display:
 Launch the interactive Streamlit dashboard:
 
 ```bash
+# Full data mode (requires processed data)
 streamlit run src/app/streamlit_mvp.py
+
+# Demo mode (uses sample data - instant preview)
+AE_SAMPLE=1 streamlit run src/app/streamlit_mvp.py
+# OR
+streamlit run src/app/streamlit_mvp.py -- --sample
 ```
+
+> 💡 **Demo Mode**: Use `AE_SAMPLE=1` or `--sample` flag to run with lightweight sample data (~50 rows) for instant preview without processing full datasets.
 
 **Dashboard Features:**
 - **KPI Metrics**: Total AE reports, unique drugs/reactions, date coverage
@@ -456,52 +490,49 @@ The pipeline includes comprehensive error handling:
 - **Processing time**: Expect 1-5 minutes per FAERS quarter depending on size
 - **Storage**: Output files are compressed (Parquet) for efficiency
 
-## 👨‍💻 Development
+## 🐳 Docker (Reproducible Demo)
 
-### Code Quality
-
-This project uses pre-commit hooks to ensure code quality:
+Run the dashboard instantly in demo (sample) mode without local Python setup:
 
 ```bash
-# Install pre-commit hooks
-pip install pre-commit
-pre-commit install
+# Build image
+docker build -t ae-trend-analyzer .
 
-# Run manually on all files
-pre-commit run --all-files
+# Run (sample data, port 8501)
+docker run -p 8501:8501 ae-trend-analyzer
+
+# Override to run full data (mount your processed data directory)
+# (Assumes you already generated data/processed on host)
+docker run -p 8501:8501 -v ${PWD}/data/processed:/app/data/processed \
+  -e AE_SAMPLE=0 ae-trend-analyzer
 ```
 
-**Configured Tools:**
-- **black**: Code formatting
-- **isort**: Import sorting  
-- **flake8**: Style and error checking
+Image defaults:
+- AE_SAMPLE=1 (sample mode)
+- Exposes http://localhost:8501
+- Uses `ENTRYPOINT [python run_dashboard.py --sample]`
 
-### Contributing
+## 📣 Citation
 
-To extend the functionality:
-1. Add new modules to `src/etl/` or `src/analysis/`
-2. Import and integrate in `build_all.py`
-3. Follow the existing logging and error handling patterns
-4. Add appropriate type hints and docstrings
-5. Run pre-commit hooks before committing
+If you use AE Trend Analyzer in academic work, please cite:
 
-## 👨‍💻 Author
+```
+@software{ae_trend_analyzer,
+  title = {AE Trend Analyzer},
+  author = {Das, Mahin},
+  year = {2025},
+  url = {https://github.com/mahinds04/ae-trend-analyzer},
+  version = {0.3.0},
+  abstract = {Processes FDA FAERS and drug review datasets to surface temporal adverse event trends, anomalies, and safety insights via an interactive Streamlit dashboard.}
+}
+```
 
-**Mahin Das**
-- 📧 Email: [mahinds04@gmail.com](mailto:mahinds04@gmail.com) | [dasmahin07@gmail.com](mailto:dasmahin07@gmail.com)
-- 🐙 GitHub: [@mahinds04](https://github.com/mahinds04)
-- 💼 LinkedIn: [Connect with me](https://linkedin.com/in/mahinds04)
+Or use the metadata in `CITATION.cff`.
 
-## 📄 License
+## 🤝 Contributing & Conduct
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- **FDA** for providing FAERS data
-- **Kaggle contributors** for WebMD and UCI datasets
-- **Streamlit team** for the amazing framework
-- **Open source community** for the tools and libraries
+- See `CONTRIBUTING.md` for development workflow, testing and standards
+- Community standards governed by `CODE_OF_CONDUCT.md`
 
 ## 📈 Project Stats
 

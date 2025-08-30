@@ -51,6 +51,10 @@ data/raw/UCI*/
 data/processed/*.parquet
 data/processed/*.csv
 
+# Allow sample files for demo mode
+!data/processed/_samples/*.sample.csv
+!data/processed/_samples/*.sample.parquet
+
 # Exclude specific large files
 data/raw/WebMD Drug Reviews Dataset/
 data/raw/UCI ML Drug Review Dataset/

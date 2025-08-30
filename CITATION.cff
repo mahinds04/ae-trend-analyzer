@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+title: "AE Trend Analyzer"
+message: "If you use this software, please cite it using the metadata below."
+authors:
+  - family-names: "Das"
+    given-names: "Mahin"
+version: "0.3.0"
+date-released: "2025-08-30"
+repository-code: "https://github.com/mahinds04/ae-trend-analyzer"
+license: MIT
+type: software
+keywords:
+  - pharmacovigilance
+  - adverse events
+  - FAERS
+  - anomaly detection
+  - drug safety
+doi: ""
+abstract: "AE Trend Analyzer processes FDA FAERS and drug review datasets to surface temporal adverse event trends, anomalies, and safety insights via an interactive Streamlit dashboard."
