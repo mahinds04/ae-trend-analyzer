@@ -45,7 +45,12 @@ def load_webmd(file_path: Union[str, Path]) -> pd.DataFrame:
     logger.info(f"Loading WebMD reviews from {file_path}")
     
     try:
-        df = pd.read_csv(file_path, encoding='utf-8', errors='replace')
+        # Fix pandas compatibility - use on_bad_lines instead of errors for newer pandas
+        try:
+            df = pd.read_csv(file_path, encoding='utf-8', on_bad_lines='skip')
+        except TypeError:
+            # Fallback for older pandas versions
+            df = pd.read_csv(file_path, encoding='utf-8', error_bad_lines=False, warn_bad_lines=False)
         
         # Standardize column names (adjust based on actual WebMD schema)
         column_mapping = {
@@ -113,7 +118,12 @@ def load_uci(file_path: Union[str, Path]) -> pd.DataFrame:
     logger.info(f"Loading UCI reviews from {file_path}")
     
     try:
-        df = pd.read_csv(file_path, encoding='utf-8', errors='replace')
+        # Fix pandas compatibility - use on_bad_lines instead of errors for newer pandas
+        try:
+            df = pd.read_csv(file_path, encoding='utf-8', on_bad_lines='skip')
+        except TypeError:
+            # Fallback for older pandas versions
+            df = pd.read_csv(file_path, encoding='utf-8', error_bad_lines=False, warn_bad_lines=False)
         
         # UCI dataset typical columns: drugName, condition, review, rating, date, usefulCount
         column_mapping = {

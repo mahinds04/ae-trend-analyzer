@@ -227,7 +227,14 @@ def process_faers_data(raw_dir: Path, proc_dir: Path, limit_quarters: Optional[i
     # Print summary statistics
     logger.info(f"FAERS Processing Summary:")
     logger.info(f"  Total events: {len(combined_events):,}")
-    logger.info(f"  Date range: {combined_events['event_date'].min()} to {combined_events['event_date'].max()}")
+    
+    # Handle date range calculation safely
+    valid_dates = combined_events['event_date'].dropna()
+    if len(valid_dates) > 0:
+        logger.info(f"  Date range: {valid_dates.min()} to {valid_dates.max()}")
+    else:
+        logger.info("  Date range: No valid dates found")
+    
     logger.info(f"  Unique drugs: {combined_events['drug'].nunique():,}")
     logger.info(f"  Unique reactions: {combined_events['reaction_pt'].nunique():,}")
     logger.info(f"  Serious events: {combined_events['serious'].sum():,} ({combined_events['serious'].mean()*100:.1f}%)")

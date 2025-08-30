@@ -18,11 +18,11 @@ def main():
         from etl.build_all import main as etl_main
         etl_main()
     except ImportError as e:
-        print(f"❌ Import error: {e}")
+        print(f"[ERROR] Import error: {e}")
         print("Please ensure you're running from the project root directory.")
         sys.exit(1)
     except Exception as e:
-        print(f"❌ Error running ETL pipeline: {e}")
+        print(f"[ERROR] Error running ETL pipeline: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

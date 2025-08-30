@@ -223,7 +223,18 @@ def _read_large_file_chunked(file_path: Path, file_type: str,
         Consolidated DataFrame with optimized memory usage
     """
     if chunk_size is None:
-        chunk_size = FAERS_CONFIG['chunk_size']
+        # Memory optimization: adjust chunk size based on file size
+        file_size_mb = file_path.stat().st_size / (1024 * 1024)
+        
+        if file_size_mb > 500:  # Large file (>500MB)
+            chunk_size = 25000
+            logger.info(f"Large file ({file_size_mb:.0f}MB) detected, using smaller chunk size: {chunk_size}")
+        elif file_size_mb > 200:  # Medium file (>200MB)
+            chunk_size = 35000
+            logger.info(f"Medium file ({file_size_mb:.0f}MB) detected, using reduced chunk size: {chunk_size}")
+        else:
+            chunk_size = FAERS_CONFIG['chunk_size']
+            logger.info(f"Standard chunk size: {chunk_size}")
     
     logger.info(f"Reading large file in chunks: {file_path.name} (chunk_size={chunk_size:,})")
     
@@ -235,10 +246,10 @@ def _read_large_file_chunked(file_path: Path, file_type: str,
     
     try:
         # First, read just the header to identify available columns
-        header_df = pd.read_csv(file_path, sep='\t', nrows=0, dtype=str, encoding='utf-8')
+        header_df = pd.read_csv(file_path, sep='$', nrows=0, dtype=str, encoding='utf-8')
     except UnicodeDecodeError:
         logger.warning(f"UTF-8 decode failed for {file_path}, trying latin-1")
-        header_df = pd.read_csv(file_path, sep='\t', nrows=0, dtype=str, encoding='latin-1')
+        header_df = pd.read_csv(file_path, sep='$', nrows=0, dtype=str, encoding='latin-1')
     
     available_columns = [col.strip() for col in header_df.columns]
     
@@ -256,31 +267,66 @@ def _read_large_file_chunked(file_path: Path, file_type: str,
     else:
         logger.info(f"Keeping {len(columns_to_keep)} essential columns from {len(available_columns)} total")
     
-    # Read file in chunks
+    # Read file in chunks with robust error handling
     try:
-        chunk_reader = pd.read_csv(
-            file_path, 
-            sep='\t', 
-            dtype=str, 
-            encoding='utf-8',
-            chunksize=chunk_size,
-            na_values=['', 'NULL', 'null'], 
-            keep_default_na=True,
-            usecols=columns_to_keep
-        )
+        try:
+            chunk_reader = pd.read_csv(
+                file_path, 
+                sep='$', 
+                dtype=str, 
+                encoding='utf-8',
+                chunksize=chunk_size,
+                na_values=['', 'NULL', 'null'], 
+                keep_default_na=True,
+                usecols=columns_to_keep,
+                on_bad_lines='skip',
+                low_memory=False
+            )
+        except TypeError:
+            # Fallback for older pandas versions
+            chunk_reader = pd.read_csv(
+                file_path, 
+                sep='$', 
+                dtype=str, 
+                encoding='utf-8',
+                chunksize=chunk_size,
+                na_values=['', 'NULL', 'null'], 
+                keep_default_na=True,
+                usecols=columns_to_keep,
+                error_bad_lines=False,
+                warn_bad_lines=False,
+                low_memory=False
+            )
     except UnicodeDecodeError:
         logger.warning(f"UTF-8 decode failed for chunked reading, trying latin-1")
-        chunk_reader = pd.read_csv(
-            file_path, 
-            sep='\t', 
-            dtype=str, 
-            encoding='latin-1',
-            chunksize=chunk_size,
-            na_values=['', 'NULL', 'null'], 
-            keep_default_na=True,
-            errors='replace',
-            usecols=columns_to_keep
-        )
+        try:
+            chunk_reader = pd.read_csv(
+                file_path, 
+                sep='$', 
+                dtype=str, 
+                encoding='latin-1',
+                chunksize=chunk_size,
+                na_values=['', 'NULL', 'null'], 
+                keep_default_na=True,
+                usecols=columns_to_keep,
+                on_bad_lines='skip',
+                low_memory=False
+            )
+        except TypeError:
+            # Fallback for older pandas versions
+            chunk_reader = pd.read_csv(
+                file_path, 
+                sep='$', 
+                dtype=str, 
+                encoding='latin-1',
+                chunksize=chunk_size,
+                na_values=['', 'NULL', 'null'], 
+                keep_default_na=True,
+                usecols=columns_to_keep,
+                error_bad_lines=False,
+                warn_bad_lines=False,
+                low_memory=False
+            )
     
     # Process chunks
     for i, chunk in enumerate(tqdm(chunk_reader, desc=f"Reading {file_type} chunks")):
@@ -433,15 +479,29 @@ def load_faers_ascii(folder: Path) -> Dict[str, pd.DataFrame]:
                 logger.info("Using chunked reading for memory efficiency")
                 df = _read_large_file_chunked(file_path, file_type)
             else:
-                # Use standard reading for smaller files
+                # Use standard reading for smaller files with robust error handling
                 try:
-                    df = pd.read_csv(file_path, sep='\t', dtype=str, encoding='utf-8', 
-                                   na_values=['', 'NULL', 'null'], keep_default_na=True)
+                    # Try with robust error handling for malformed lines
+                    try:
+                        df = pd.read_csv(file_path, sep='$', dtype=str, encoding='utf-8', 
+                                       na_values=['', 'NULL', 'null'], keep_default_na=True,
+                                       on_bad_lines='skip', low_memory=False)
+                    except TypeError:
+                        # Fallback for older pandas versions
+                        df = pd.read_csv(file_path, sep='$', dtype=str, encoding='utf-8', 
+                                       na_values=['', 'NULL', 'null'], keep_default_na=True,
+                                       error_bad_lines=False, warn_bad_lines=False, low_memory=False)
                 except UnicodeDecodeError:
                     logger.warning(f"UTF-8 decode failed for {file_path}, trying latin-1")
-                    df = pd.read_csv(file_path, sep='\t', dtype=str, encoding='latin-1',
-                                   na_values=['', 'NULL', 'null'], keep_default_na=True,
-                                   errors='replace')
+                    try:
+                        df = pd.read_csv(file_path, sep='$', dtype=str, encoding='latin-1',
+                                       na_values=['', 'NULL', 'null'], keep_default_na=True,
+                                       on_bad_lines='skip', low_memory=False)
+                    except TypeError:
+                        # Fallback for older pandas versions
+                        df = pd.read_csv(file_path, sep='$', dtype=str, encoding='latin-1',
+                                       na_values=['', 'NULL', 'null'], keep_default_na=True,
+                                       error_bad_lines=False, warn_bad_lines=False, low_memory=False)
                 
                 # Clean column names
                 df.columns = df.columns.str.strip()
@@ -579,20 +639,47 @@ def build_events(df_dict: Dict[str, pd.DataFrame]) -> pd.DataFrame:
     # Join with reactions (required)
     reactions = df_dict['REAC'][['case_id', 'reaction_pt']].copy()
     logger.info(f"Input tables: DEMO ({initial_demo_count:,} rows), REAC ({len(reactions):,} rows)")
-    
+
     # Analyze key overlap before join
     _analyze_key_overlap(events, reactions, 'case_id', 'DEMO', 'REAC')
+
+    # Memory-optimized join: First find common keys, then filter before join
+    demo_keys = set(events['case_id'].dropna())
+    reac_keys = set(reactions['case_id'].dropna())
+    common_keys = demo_keys.intersection(reac_keys)
     
-    events = events.merge(reactions, on='case_id', how='inner')
-    _log_join_stats(initial_demo_count, len(events), "DEMO with REAC", "REAC", "inner")
+    logger.info(f"Common keys found: {len(common_keys):,} out of {len(demo_keys):,} DEMO cases")
     
-    # Join with drugs if available
+    if len(common_keys) == 0:
+        logger.error("No common keys found between DEMO and REAC tables")
+        return pd.DataFrame()
+    
+    # Filter both tables to common keys before join to prevent memory explosion
+    events_filtered = events[events['case_id'].isin(common_keys)].copy()
+    reactions_filtered = reactions[reactions['case_id'].isin(common_keys)].copy()
+    
+    logger.info(f"Filtered tables: DEMO ({len(events_filtered):,} rows), REAC ({len(reactions_filtered):,} rows)")
+    
+    # Now perform the join on filtered data
+    events = events_filtered.merge(reactions_filtered, on='case_id', how='inner')
+    _log_join_stats(initial_demo_count, len(events), "DEMO with REAC", "REAC", "inner")    # Join with drugs if available
     if 'DRUG' in df_dict and not df_dict['DRUG'].empty:
         drugs = df_dict['DRUG'][['case_id', 'drug']].copy()
         _analyze_key_overlap(events, drugs, 'case_id', 'EVENTS', 'DRUG')
-        before_drug_join = len(events)
-        events = events.merge(drugs, on='case_id', how='left')
-        _log_join_stats(before_drug_join, len(events), "EVENTS with DRUG", "DRUG", "left")
+        
+        # Memory-optimized join for drugs
+        events_keys = set(events['case_id'].dropna())
+        drug_keys = set(drugs['case_id'].dropna())
+        common_drug_keys = events_keys.intersection(drug_keys)
+        
+        if len(common_drug_keys) > 0:
+            drugs_filtered = drugs[drugs['case_id'].isin(common_drug_keys)].copy()
+            before_drug_join = len(events)
+            events = events.merge(drugs_filtered, on='case_id', how='left')
+            _log_join_stats(before_drug_join, len(events), "EVENTS with DRUG", "DRUG", "left")
+        else:
+            logger.warning("No common keys found between EVENTS and DRUG")
+            events['drug'] = 'UNKNOWN'
     else:
         events['drug'] = 'UNKNOWN'
         logger.warning("No DRUG table available, setting drug to 'UNKNOWN'")
@@ -603,9 +690,19 @@ def build_events(df_dict: Dict[str, pd.DataFrame]) -> pd.DataFrame:
         # Take the most serious outcome per case
         outcomes_serious = outcomes.groupby('case_id')['serious'].max().reset_index()
         _analyze_key_overlap(events, outcomes_serious, 'case_id', 'EVENTS', 'OUTC')
-        before_outcome_join = len(events)
-        events = events.merge(outcomes_serious, on='case_id', how='left')
-        _log_join_stats(before_outcome_join, len(events), "EVENTS with OUTC", "OUTC", "left")
+        
+        # Memory-optimized join for outcomes
+        events_keys = set(events['case_id'].dropna())
+        outc_keys = set(outcomes_serious['case_id'].dropna())
+        common_outc_keys = events_keys.intersection(outc_keys)
+        
+        if len(common_outc_keys) > 0:
+            outcomes_filtered = outcomes_serious[outcomes_serious['case_id'].isin(common_outc_keys)].copy()
+            before_outcome_join = len(events)
+            events = events.merge(outcomes_filtered, on='case_id', how='left')
+            _log_join_stats(before_outcome_join, len(events), "EVENTS with OUTC", "OUTC", "left")
+        else:
+            logger.warning("No common keys found between EVENTS and OUTC")
     
     if 'serious' not in events.columns:
         events['serious'] = False
