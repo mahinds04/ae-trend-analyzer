@@ -68,3 +68,5 @@ quick_*.py
 demo.py
 etl_output.log
 UPLOAD_STATUS.md
+create_samples.py
+run_example.py
