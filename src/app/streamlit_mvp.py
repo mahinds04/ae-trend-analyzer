@@ -15,6 +15,17 @@ import numpy as np
 import os
 import sys
 
+# Import anomaly detection modules
+sys.path.append(str(Path(__file__).parent.parent))
+from analysis.insights import (
+    summarize_top_spikes_overall,
+    summarize_top_spikes_by_drug,
+    summarize_top_spikes_by_reaction,
+    format_spike_table,
+    get_spike_months
+)
+from analysis.anomaly import ensure_monthly_index, detect_anomalies
+
 
 # Check for sample mode
 def is_sample_mode():
@@ -111,8 +122,8 @@ def calculate_kpis(monthly_counts, monthly_reaction, monthly_drug):
         return 0, 0, 0, "Error"
 
 
-def create_overall_trend_chart(monthly_counts):
-    """Create overall monthly trend chart."""
+def create_overall_trend_chart(monthly_counts, method="stl"):
+    """Create overall monthly trend chart with spike detection overlay."""
     if 'date' not in monthly_counts.columns or 'count' not in monthly_counts.columns:
         st.warning("Missing required columns for overall trend chart")
         return None
@@ -124,6 +135,7 @@ def create_overall_trend_chart(monthly_counts):
         st.warning("No valid data for overall trend chart")
         return None
     
+    # Create base line chart
     fig = px.line(
         df_clean,
         x='date',
@@ -133,17 +145,52 @@ def create_overall_trend_chart(monthly_counts):
         line_shape='spline'
     )
     
+    # Add spike detection overlay
+    try:
+        # Convert to monthly series for spike detection
+        series = df_clean.set_index('date')['count']
+        series = ensure_monthly_index(df_clean, 'date', 'count')
+        
+        if len(series) >= 2:
+            anomaly_df = detect_anomalies(series, method=method)
+            
+            if not anomaly_df.empty and 'is_spike' in anomaly_df.columns:
+                spikes = anomaly_df[anomaly_df['is_spike']]
+                
+                if not spikes.empty:
+                    # Add spike markers
+                    fig.add_scatter(
+                        x=spikes.index,
+                        y=spikes['value'],
+                        mode='markers',
+                        marker=dict(
+                            color='red',
+                            size=10,
+                            symbol='diamond',
+                            line=dict(width=2, color='darkred')
+                        ),
+                        name=f'Spikes ({method.upper()})',
+                        hovertemplate='<b>Spike Detected</b><br>' +
+                                    'Date: %{x}<br>' +
+                                    'Count: %{y:,}<br>' +
+                                    '<extra></extra>'
+                    )
+    except Exception as e:
+        # If spike detection fails, just show the basic chart
+        pass
+    
     fig.update_layout(
         xaxis_title="Month",
         yaxis_title="Number of Reports",
-        hovermode='x unified'
+        hovermode='x unified',
+        showlegend=True
     )
     
     return fig
 
 
-def create_filtered_trend_chart(data, filter_type, filter_value, value_col='count'):
-    """Create filtered trend chart for specific drug or reaction."""
+def create_filtered_trend_chart(data, filter_type, filter_value, value_col='count', method="stl"):
+    """Create filtered trend chart for specific drug or reaction with spike detection."""
     if filter_value == "<ALL>":
         # Aggregate all values by date
         if 'date' not in data.columns or value_col not in data.columns:
@@ -166,6 +213,65 @@ def create_filtered_trend_chart(data, filter_type, filter_value, value_col='coun
         
         df_agg = df_filtered.groupby('date')[value_col].sum().reset_index()
         title = f"{filter_value} - Monthly Trend"
+    
+    # Remove rows with null dates
+    df_clean = df_agg.dropna(subset=['date'])
+    
+    if len(df_clean) == 0:
+        st.warning(f"No valid data for {filter_type} chart")
+        return None
+    
+    # Create base line chart
+    fig = px.line(
+        df_clean,
+        x='date',
+        y=value_col,
+        title=title,
+        labels={value_col: 'Number of Reports', 'date': 'Month'},
+        line_shape='spline'
+    )
+    
+    # Add spike detection overlay
+    try:
+        # Convert to monthly series for spike detection
+        series = ensure_monthly_index(df_clean, 'date', value_col)
+        
+        if len(series) >= 2:
+            anomaly_df = detect_anomalies(series, method=method)
+            
+            if not anomaly_df.empty and 'is_spike' in anomaly_df.columns:
+                spikes = anomaly_df[anomaly_df['is_spike']]
+                
+                if not spikes.empty:
+                    # Add spike markers
+                    fig.add_scatter(
+                        x=spikes.index,
+                        y=spikes['value'],
+                        mode='markers',
+                        marker=dict(
+                            color='red',
+                            size=10,
+                            symbol='diamond',
+                            line=dict(width=2, color='darkred')
+                        ),
+                        name=f'Spikes ({method.upper()})',
+                        hovertemplate='<b>Spike Detected</b><br>' +
+                                    'Date: %{x}<br>' +
+                                    'Count: %{y:,}<br>' +
+                                    '<extra></extra>'
+                    )
+    except Exception as e:
+        # If spike detection fails, just show the basic chart
+        pass
+    
+    fig.update_layout(
+        xaxis_title="Month",
+        yaxis_title="Number of Reports",
+        hovermode='x unified',
+        showlegend=True
+    )
+    
+    return fig
     
     # Remove rows with null dates
     df_agg = df_agg.dropna(subset=['date'])
@@ -325,6 +431,23 @@ def main():
         unsafe_allow_html=True
     )
     
+    # Add anomaly method selection
+    st.sidebar.markdown("### 🔍 Anomaly Detection")
+    anomaly_methods = ["STL", "Rolling Z", "Prophet (if installed)"]
+    selected_method = st.sidebar.selectbox(
+        "Choose detection method:",
+        anomaly_methods,
+        help="STL: Seasonal decomposition (best for 12+ months)\nRolling Z: Simple trend-based detection\nProphet: Advanced ML method (requires 24+ months)"
+    )
+    
+    # Convert method name for backend
+    method_mapping = {
+        "STL": "stl",
+        "Rolling Z": "rolling_z", 
+        "Prophet (if installed)": "prophet"
+    }
+    selected_method_key = method_mapping[selected_method]
+    
     # Add filter tips
     with st.sidebar.expander("� Filter Tips"):
         st.markdown("""
@@ -406,6 +529,98 @@ def main():
         
         st.info(f"🎯 **Active Filters:** {' | '.join(filter_status)}")
     
+    # Add Insights Panel
+    with st.expander("🔍 **Anomaly Detection Insights**", expanded=False):
+        st.markdown(f"**Detection Method:** {selected_method}")
+        
+        insights_col1, insights_col2, insights_col3 = st.columns(3)
+        
+        # Check sample mode status
+        current_sample_mode = is_sample_mode()
+        
+        with insights_col1:
+            st.markdown("#### 🌍 Overall Trends")
+            try:
+                if current_sample_mode:
+                    data_path = Path("data/processed/_samples") / "monthly_counts.sample.csv"
+                else:
+                    data_path = "data/processed/monthly_counts.csv"
+                    
+                overall_insights = summarize_top_spikes_overall(
+                    path=data_path, 
+                    method=selected_method_key, 
+                    k=3
+                )
+                
+                if overall_insights["top_spikes"]:
+                    spike_table = format_spike_table(overall_insights["top_spikes"])
+                    st.dataframe(spike_table, use_container_width=True, hide_index=True)
+                    st.caption(f"📊 {overall_insights['n_months']} months analyzed")
+                else:
+                    st.info("No significant spikes detected")
+                    st.caption(overall_insights.get("note", ""))
+                    
+            except Exception as e:
+                st.error(f"Error loading overall insights: {e}")
+        
+        with insights_col2:
+            st.markdown("#### 💊 Current Drug")
+            if selected_drug != "<ALL>":
+                try:
+                    if current_sample_mode:
+                        data_path = Path("data/processed/_samples") / "monthly_by_drug.sample.csv"
+                    else:
+                        data_path = "data/processed/monthly_by_drug.csv"
+                        
+                    drug_insights = summarize_top_spikes_by_drug(
+                        path=data_path,
+                        drug=selected_drug,
+                        method=selected_method_key,
+                        k=3
+                    )
+                    
+                    if drug_insights["top_spikes"]:
+                        spike_table = format_spike_table(drug_insights["top_spikes"])
+                        st.dataframe(spike_table, use_container_width=True, hide_index=True)
+                        st.caption(f"📊 {drug_insights['n_months']} months analyzed")
+                    else:
+                        st.info("No significant spikes detected")
+                        st.caption(drug_insights.get("note", ""))
+                        
+                except Exception as e:
+                    st.error(f"Error loading drug insights: {e}")
+            else:
+                st.info("Select a specific drug to see insights")
+        
+        with insights_col3:
+            st.markdown("#### ⚠️ Current Reaction")
+            if selected_reaction != "<ALL>":
+                try:
+                    if current_sample_mode:
+                        data_path = Path("data/processed/_samples") / "monthly_by_reaction.sample.csv"
+                    else:
+                        data_path = "data/processed/monthly_by_reaction.csv"
+                        
+                    reaction_insights = summarize_top_spikes_by_reaction(
+                        path=data_path,
+                        reaction=selected_reaction,
+                        method=selected_method_key,
+                        k=3
+                    )
+                    
+                    if reaction_insights["top_spikes"]:
+                        spike_table = format_spike_table(reaction_insights["top_spikes"])
+                        st.dataframe(spike_table, use_container_width=True, hide_index=True)
+                        st.caption(f"📊 {reaction_insights['n_months']} months analyzed")
+                    else:
+                        st.info("No significant spikes detected")
+                        st.caption(reaction_insights.get("note", ""))
+                        
+                except Exception as e:
+                    st.error(f"Error loading reaction insights: {e}")
+            else:
+                st.info("Select a specific reaction to see insights")
+    
     # Create enhanced tabs with icons
     tab1, tab2, tab3, tab4 = st.tabs([
         "🌍 Overall Trends", 
@@ -418,7 +633,7 @@ def main():
         st.markdown("### 🌍 Overall Monthly Adverse Event Reports")
         st.markdown("*Comprehensive view of all adverse event reports over time*")
         
-        fig_overall = create_overall_trend_chart(monthly_counts)
+        fig_overall = create_overall_trend_chart(monthly_counts, method=selected_method_key)
         if fig_overall:
             st.plotly_chart(fig_overall, use_container_width=True)
             
@@ -445,7 +660,7 @@ def main():
         else:
             st.markdown("*Comprehensive drug analysis across all medications*")
         
-        fig_drug = create_filtered_trend_chart(monthly_drug, "drug", selected_drug)
+        fig_drug = create_filtered_trend_chart(monthly_drug, "drug", selected_drug, method=selected_method_key)
         if fig_drug:
             st.plotly_chart(fig_drug, use_container_width=True)
         else:
@@ -477,7 +692,7 @@ def main():
         else:
             st.markdown("*Comprehensive reaction analysis across all adverse events*")
         
-        fig_reaction = create_filtered_trend_chart(monthly_reaction, "reaction", selected_reaction)
+        fig_reaction = create_filtered_trend_chart(monthly_reaction, "reaction", selected_reaction, method=selected_method_key)
         if fig_reaction:
             st.plotly_chart(fig_reaction, use_container_width=True)
         else:

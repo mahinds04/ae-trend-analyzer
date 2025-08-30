@@ -14,6 +14,8 @@ An interactive **Adverse Event (AE) Trend Analyzer** that processes FDA FAERS (A
 - **💊 Multi-source Analysis**: WebMD + UCI drug review datasets
 - **🔍 Advanced Filtering**: By drug, reaction, and time period
 - **📈 Trend Visualization**: Professional charts with Plotly
+- **🚨 Anomaly Detection**: STL decomposition, rolling Z-score, and Prophet methods
+- **💡 Smart Insights**: Automated spike detection and ranking
 - **🧪 Quality Assurance**: Automated testing and validation
 - **⚡ Memory Optimized**: Efficient processing of large datasets
 
@@ -101,6 +103,75 @@ set AE_SAMPLE=1  # Windows
 export AE_SAMPLE=1  # Linux/Mac
 streamlit run src/app/streamlit_mvp.py
 ```
+
+## 🔍 Anomaly Detection & Insights
+
+The AE Trend Analyzer includes sophisticated anomaly detection capabilities to identify unusual spikes in adverse event reporting patterns.
+
+### Detection Methods
+
+#### 1. **STL Decomposition** (Recommended)
+- **Best for**: Seasonal data with ≥12 months
+- **Approach**: Separates trend, seasonal, and residual components
+- **Advantages**: Handles seasonality, robust to outliers
+- **Usage**: Default method in dashboard
+
+#### 2. **Rolling Z-Score**
+- **Best for**: Any time series length
+- **Approach**: Statistical deviation from rolling mean
+- **Advantages**: Simple, fast, works with short series
+- **Usage**: Fallback method, good for trend-only data
+
+#### 3. **Prophet** (Optional)
+- **Best for**: Complex seasonality, ≥24 months
+- **Approach**: Facebook's ML-based forecasting
+- **Advantages**: Handles holidays, multiple seasonalities
+- **Installation**: `pip install prophet` (optional dependency)
+
+### Quick Example
+
+```python
+from src.analysis.anomaly import detect_anomalies, ensure_monthly_index
+from src.analysis.insights import summarize_top_spikes_overall
+
+# Load and process monthly data
+import pandas as pd
+df = pd.read_csv("data/processed/monthly_counts.csv")
+series = ensure_monthly_index(df, 'ym', 'count')
+
+# Detect anomalies using STL method
+anomalies = detect_anomalies(series, method="stl", z_thresh=2.5)
+print(f"Detected {anomalies['is_spike'].sum()} spikes")
+
+# Get top 3 spikes with insights
+insights = summarize_top_spikes_overall(method="stl", k=3)
+print(f"Top spike: {insights['top_spikes'][0]['date']} with z-score {insights['top_spikes'][0]['z']:.2f}")
+```
+
+### Dashboard Integration
+
+The Streamlit dashboard automatically:
+
+1. **Analyzes Current Filters**: Shows spikes for selected drug/reaction
+2. **Visual Overlays**: Red diamond markers on detected spike months
+3. **Insights Panel**: Expandable section with top 3 spikes for:
+   - Overall trends
+   - Current drug (if selected)
+   - Current reaction (if selected)
+4. **Method Selection**: Choose detection method in sidebar
+
+### Fallback Behavior
+
+- **Insufficient Data**: STL requires ≥24 months; automatically falls back to rolling Z-score
+- **Missing Libraries**: Prophet is optional; gracefully falls back to STL or rolling Z-score
+- **Error Handling**: Robust error handling ensures dashboard always functions
+
+### Performance Notes
+
+- **STL**: Best balance of accuracy and performance
+- **Rolling Z**: Fastest, suitable for real-time analysis
+- **Prophet**: Most accurate but requires more computation time
+- **Data Requirements**: Ideal performance with ≥12 months of continuous monthly data
 
 ## 🛠️ Troubleshooting
 
