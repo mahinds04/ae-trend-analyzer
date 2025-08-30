@@ -18,11 +18,21 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm
 
-# Import configuration
-from ..config import (
-    COLUMN_MAPPINGS, SEX_MAPPING, SERIOUS_MAPPING, 
-    FAERS_CONFIG, LOGGING_CONFIG
-)
+# Import configuration - handle both relative and absolute imports
+try:
+    from ..config import (
+        COLUMN_MAPPINGS, SEX_MAPPING, SERIOUS_MAPPING, 
+        FAERS_CONFIG, LOGGING_CONFIG
+    )
+except ImportError:
+    # Fallback for direct execution
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from config import (
+        COLUMN_MAPPINGS, SEX_MAPPING, SERIOUS_MAPPING, 
+        FAERS_CONFIG, LOGGING_CONFIG
+    )
 
 # Configure logging
 logging.basicConfig(

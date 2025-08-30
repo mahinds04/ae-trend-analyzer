@@ -66,6 +66,19 @@ data/raw/faers_ascii_2023q4/    # Any year-quarter combination supported
 
 ### Run the Application
 
+**Option 1: Simple Scripts (Recommended)**
+```bash
+# Process the data
+python run_etl.py
+
+# Launch dashboard (full data)
+python run_dashboard.py
+
+# Launch dashboard (sample mode)
+python run_dashboard.py --sample
+```
+
+**Option 2: Direct Module Execution**
 ```bash
 # Process the data
 python -m src.etl.build_all
