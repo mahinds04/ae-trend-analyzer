@@ -12,11 +12,34 @@ from pathlib import Path
 # Force sample mode for cloud deployment
 os.environ['AE_SAMPLE'] = '1'
 
-# Ensure proper path setup for cloud environment
+# Set up paths
 current_dir = Path(__file__).parent
 src_dir = current_dir / "src"
-if str(src_dir) not in sys.path:
-    sys.path.insert(0, str(src_dir))
+sys.path.insert(0, str(src_dir))
 
-# Import and run the main dashboard
-from src.app.streamlit_mvp import *
+# Now execute the main streamlit app
+if __name__ == "__main__":
+    # Change to the source directory context
+    import os
+    original_cwd = os.getcwd()
+    try:
+        os.chdir(current_dir)
+        
+        # Execute the main app file
+        with open("src/app/streamlit_mvp.py", "r", encoding="utf-8") as f:
+            exec(f.read(), {"__file__": "src/app/streamlit_mvp.py"})
+            
+    except Exception as e:
+        import streamlit as st
+        st.error(f"Failed to load app: {e}")
+        st.write("Debug info:")
+        st.write(f"Current working directory: {os.getcwd()}")
+        st.write(f"Original directory: {original_cwd}")
+        st.write(f"Files in current dir: {list(Path('.').iterdir())}")
+        
+    finally:
+        os.chdir(original_cwd)
+else:
+    # Direct execution context - execute the main app
+    with open(current_dir / "src" / "app" / "streamlit_mvp.py", "r", encoding="utf-8") as f:
+        exec(f.read())
