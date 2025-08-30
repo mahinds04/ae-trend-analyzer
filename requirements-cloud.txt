@@ -1,0 +1,27 @@
+# Streamlit Cloud Production Requirements
+# Core data processing
+pandas>=1.5.0
+numpy>=1.20.0
+pyarrow>=10.0.0
+
+# Date handling  
+python-dateutil>=2.8.0
+
+# Progress bars
+tqdm>=4.64.0
+
+# Visualization
+matplotlib>=3.5.0
+plotly>=5.0.0
+
+# Dashboard and web interface
+streamlit>=1.28.0
+
+# Statistical analysis for anomaly detection
+statsmodels>=0.13.0
+
+# Optional ML-based anomaly detection (commented out to reduce build time)
+# prophet>=1.1.0
+
+# Cloud deployment optimizations
+requests>=2.28.0

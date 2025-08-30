@@ -117,6 +117,27 @@ streamlit run src/app/streamlit_mvp.py
 
 Open http://localhost:8501 in your browser!
 
+## ☁️ **Live Demo - Streamlit Cloud**
+
+🚀 **Try the live demo instantly** without any setup:
+
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io/mahinds04/ae-trend-analyzer/main/streamlit_app.py)
+
+**Features Available in Live Demo:**
+- ✅ **Interactive Dashboard** with real adverse event data
+- ✅ **Anomaly Detection** with STL decomposition and Z-score methods
+- ✅ **Visual Insights** with spike overlays and detailed analysis
+- ✅ **Sample Data** covering 2013-2024 with representative drugs and reactions
+
+**Deploy Your Own:**
+1. Fork this repository
+2. Visit [share.streamlit.io](https://share.streamlit.io)
+3. Connect your GitHub repository
+4. Set main file: `streamlit_app.py`
+5. Deploy! 
+
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) for detailed deployment instructions.
+
 ### Instant Demo Mode
 
 For quick testing without full datasets:
