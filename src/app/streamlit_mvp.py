@@ -12,6 +12,22 @@ import plotly.graph_objects as go
 from pathlib import Path
 from datetime import datetime
 import numpy as np
+import os
+import sys
+
+
+# Check for sample mode
+def is_sample_mode():
+    """Check if running in sample mode via CLI argument or environment variable."""
+    # Check environment variable
+    if os.getenv('AE_SAMPLE', '').lower() in ['1', 'true', 'yes']:
+        return True
+    
+    # Check command line argument
+    if '--sample' in sys.argv:
+        return True
+        
+    return False
 
 
 # Page configuration
@@ -26,13 +42,21 @@ st.set_page_config(
 @st.cache_data
 def load_data():
     """Load all required data files with caching."""
-    data_dir = Path("data/processed")
+    sample_mode = is_sample_mode()
+    
+    if sample_mode:
+        data_dir = Path("data/processed/_samples")
+        file_suffix = ".sample"
+        st.info("🚀 **Demo Mode**: Using sample data (~50 rows) for instant preview")
+    else:
+        data_dir = Path("data/processed")
+        file_suffix = ""
     
     try:
         # Load monthly aggregations
-        monthly_counts = pd.read_csv(data_dir / "monthly_counts.csv")
-        monthly_reaction = pd.read_csv(data_dir / "monthly_by_reaction.csv")
-        monthly_drug = pd.read_csv(data_dir / "monthly_by_drug.csv")
+        monthly_counts = pd.read_csv(data_dir / f"monthly_counts{file_suffix}.csv")
+        monthly_reaction = pd.read_csv(data_dir / f"monthly_by_reaction{file_suffix}.csv")
+        monthly_drug = pd.read_csv(data_dir / f"monthly_by_drug{file_suffix}.csv")
         
         # Convert ym to datetime for better plotting
         for df in [monthly_counts, monthly_reaction, monthly_drug]:
@@ -42,8 +66,13 @@ def load_data():
         return monthly_counts, monthly_reaction, monthly_drug
     
     except FileNotFoundError as e:
-        st.error(f"Data file not found: {e}")
-        st.error("Please run the ETL pipeline first to generate processed data files.")
+        if sample_mode:
+            st.error(f"Sample data file not found: {e}")
+            st.error("Please run `python create_samples.py` to generate sample files.")
+        else:
+            st.error(f"Data file not found: {e}")
+            st.error("Please run the ETL pipeline first to generate processed data files.")
+            st.info("💡 **Quick Start**: Try sample mode with `streamlit run src/app/streamlit_mvp.py -- --sample`")
         st.stop()
     except Exception as e:
         st.error(f"Error loading data: {e}")

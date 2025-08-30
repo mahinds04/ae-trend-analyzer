@@ -1,5 +1,6 @@
 # AE Trend Analyzer
 
+[![CI - QA & Smoke Tests](https://github.com/mahinds04/ae-trend-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/mahinds04/ae-trend-analyzer/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)](https://streamlit.io)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -48,7 +49,20 @@ pip install -r requirements.txt
 2. **Download Review Datasets**: 
    - [WebMD Drug Reviews](https://www.kaggle.com/datasets/rohanharode07/webmd-drug-reviews-dataset)
    - [UCI ML Drug Reviews](https://www.kaggle.com/datasets/jessicali9530/kuc-hackathon-winter-2018)
-3. **Place files** in `data/raw/` following the structure in `data/README.md`
+3. **Place files** in `data/raw/` following the structure below:
+
+**FAERS Directory Examples** (matching loader expectations):
+```
+data/raw/faers_ascii_2024q1/    # Quarters: 2024q1, 2024q2, 2024q3, 2024Q4
+data/raw/faers_ascii_2013q1/    # Older format: 2013q1, 2013q2, 2013q3, 2013q4  
+data/raw/faers_ascii_2023q4/    # Any year-quarter combination supported
+```
+
+**Required Files Per Quarter**:
+- `ASCII/DEMO*.txt` (demographics)
+- `ASCII/DRUG*.txt` (drug information) 
+- `ASCII/REAC*.txt` (reactions)
+- Plus: INDI, OUTC, RPSR, THER files
 
 ### Run the Application
 
@@ -61,6 +75,47 @@ streamlit run src/app/streamlit_mvp.py
 ```
 
 Open http://localhost:8501 in your browser!
+
+### Instant Demo Mode
+
+For quick testing without full datasets:
+```bash
+# Run with sample data (≈50 rows)
+streamlit run src/app/streamlit_mvp.py -- --sample
+
+# Or set environment variable
+set AE_SAMPLE=1  # Windows
+export AE_SAMPLE=1  # Linux/Mac
+streamlit run src/app/streamlit_mvp.py
+```
+
+## 🛠️ Troubleshooting
+
+### Common Issues
+
+**Pandas/Encoding Errors:**
+```
+UnicodeDecodeError: 'utf-8' codec can't decode
+```
+- **Solution**: FAERS files use different encodings. The loader automatically tries `latin-1` and `cp1252` fallbacks.
+
+**Memory Issues:**
+```
+MemoryError or system slowdown with large files
+```
+- **Solution**: Large DRUG files (>100MB) trigger warnings. Consider processing quarters individually or increase system RAM.
+
+**Date Parsing Warnings:**
+```
+UserWarning: Could not infer format, so each element will be parsed individually
+```
+- **Solution**: Normal for FAERS data with mixed date formats. The system handles YYYYMMDD, YYYY-MM-DD, and other variations.
+
+**Missing File Errors:**
+```
+FileNotFoundError: [Errno 2] No such file or directory: 'data/raw/...'
+```
+- **Solution**: Ensure FAERS quarters follow naming pattern `faers_ascii_YYYYqN/` and contain `ASCII/` subdirectory.
 
 ## Overview
 
@@ -317,13 +372,34 @@ The pipeline includes comprehensive error handling:
 - **Processing time**: Expect 1-5 minutes per FAERS quarter depending on size
 - **Storage**: Output files are compressed (Parquet) for efficiency
 
-## Contributing
+## 👨‍💻 Development
+
+### Code Quality
+
+This project uses pre-commit hooks to ensure code quality:
+
+```bash
+# Install pre-commit hooks
+pip install pre-commit
+pre-commit install
+
+# Run manually on all files
+pre-commit run --all-files
+```
+
+**Configured Tools:**
+- **black**: Code formatting
+- **isort**: Import sorting  
+- **flake8**: Style and error checking
+
+### Contributing
 
 To extend the functionality:
 1. Add new modules to `src/etl/` or `src/analysis/`
 2. Import and integrate in `build_all.py`
 3. Follow the existing logging and error handling patterns
 4. Add appropriate type hints and docstrings
+5. Run pre-commit hooks before committing
 
 ## 👨‍💻 Author
 
